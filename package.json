@@ -1,0 +1,19 @@
+{
+  "name": "opencode-kotlin-secret-guard-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "./gradlew assemblePlugin",
+    "generate:bindings": "bun install --cwd bindings --frozen-lockfile && bun run --cwd bindings generate",
+    "test": "./gradlew jsNodeTest",
+    "test:bindings": "node scripts/test-bindings-generator.mjs && node scripts/test-bindings-determinism.mjs && node scripts/test-typed-interop.mjs",
+    "check": "./gradlew check && bun run test:bindings && node scripts/verify-opencode.mjs",
+    "verify:opencode": "node scripts/verify-opencode.mjs"
+  },
+  "devDependencies": {
+    "@opencode-ai/cli": "0.0.0-beta-19271"
+  },
+  "trustedDependencies": [
+    "@opencode-ai/cli"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "opencode-kotlin-bindings-generator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:upstream": "node scripts/check-upstream-contract.mjs",
+    "generate": "node scripts/generate.mjs"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "0.0.0-beta-19271",
+    "karakum": "1.0.0-alpha.112",
+    "typescript": "6.0.2"
+  }
+}

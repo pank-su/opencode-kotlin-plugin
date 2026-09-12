@@ -1,0 +1,42 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "opencode-kotlin-secret-guard-workspace",
+      "devDependencies": {
+        "@opencode-ai/cli": "0.0.0-beta-19271",
+      },
+    },
+  },
+  "trustedDependencies": [
+    "@opencode-ai/cli",
+  ],
+  "packages": {
+    "@opencode-ai/cli": ["@opencode-ai/cli@0.0.0-beta-19271", "", { "optionalDependencies": { "@opencode-ai/cli-darwin-arm64": "0.0.0-beta-19271", "@opencode-ai/cli-darwin-x64": "0.0.0-beta-19271", "@opencode-ai/cli-darwin-x64-baseline": "0.0.0-beta-19271", "@opencode-ai/cli-linux-arm64": "0.0.0-beta-19271", "@opencode-ai/cli-linux-arm64-musl": "0.0.0-beta-19271", "@opencode-ai/cli-linux-x64": "0.0.0-beta-19271", "@opencode-ai/cli-linux-x64-baseline": "0.0.0-beta-19271", "@opencode-ai/cli-linux-x64-baseline-musl": "0.0.0-beta-19271", "@opencode-ai/cli-linux-x64-musl": "0.0.0-beta-19271", "@opencode-ai/cli-windows-arm64": "0.0.0-beta-19271", "@opencode-ai/cli-windows-x64": "0.0.0-beta-19271", "@opencode-ai/cli-windows-x64-baseline": "0.0.0-beta-19271" }, "os": [ "linux", "win32", "darwin", ], "cpu": [ "x64", "arm64", ], "bin": { "opencode2": "bin/opencode2.exe" } }, "sha512-n1QkNyeDOTroOn0UOftJKFTdg7sLruqSS7wKGT5YB6qCqZiZE7udFs8fL8JcFAFs4ZYQoneQlnSJho7ABQKWAg=="],
+
+    "@opencode-ai/cli-darwin-arm64": ["@opencode-ai/cli-darwin-arm64@0.0.0-beta-19271", "", { "os": "darwin", "cpu": "arm64" }, "sha512-CHfMY/7pPq4Andvrif34tC/N9mFppSujjscVISVOSMc/twAvkIGGfDUZgU65qHDsifSnt6+IJr3NZ2AbPzWOfA=="],
+
+    "@opencode-ai/cli-darwin-x64": ["@opencode-ai/cli-darwin-x64@0.0.0-beta-19271", "", { "os": "darwin", "cpu": "x64" }, "sha512-ZHQWqTBnDpyg78pMPYPBECEm6Qj8HpFKl3exSFPwbUDt8Gi1ixxsaggVIRpvOAOR/XdtbUj6eXwEtRHMZ2EmUw=="],
+
+    "@opencode-ai/cli-darwin-x64-baseline": ["@opencode-ai/cli-darwin-x64-baseline@0.0.0-beta-19271", "", { "os": "darwin", "cpu": "x64" }, "sha512-lhxjdTMnly2zb88/yOQHJwaDgvKH8kyCrmHIBnOiYexYW394EGwmxHjHkQRWfrgXXRk9vqzKHw8ldx0ust0Msw=="],
+
+    "@opencode-ai/cli-linux-arm64": ["@opencode-ai/cli-linux-arm64@0.0.0-beta-19271", "", { "os": "linux", "cpu": "arm64" }, "sha512-0WIzqvdgTUwUaQK5cXibZauGbRW7NZcuXGrA8dMsRWmAyONKDCnI9LbSXigGwc1RkGeRJrLtP/Xwmc8UCeXoJA=="],
+
+    "@opencode-ai/cli-linux-arm64-musl": ["@opencode-ai/cli-linux-arm64-musl@0.0.0-beta-19271", "", { "os": "linux", "cpu": "arm64" }, "sha512-YntKMzxo9lAQXdMZ+faChBWIV5D2fIfSdw7nXvMI78/7JHgQE4aOpFhY+Vbc0hluJpy81VhtRsYAjlUA2d6B3Q=="],
+
+    "@opencode-ai/cli-linux-x64": ["@opencode-ai/cli-linux-x64@0.0.0-beta-19271", "", { "os": "linux", "cpu": "x64" }, "sha512-eZxNRstEUCxYk+L6PqtZ8GdLnCi6076N490QAi2pY93qqD6+qg99OF5B1jRBF2mI/ysfCzXlrQtLNE+JfyuXRQ=="],
+
+    "@opencode-ai/cli-linux-x64-baseline": ["@opencode-ai/cli-linux-x64-baseline@0.0.0-beta-19271", "", { "os": "linux", "cpu": "x64" }, "sha512-o0rfUrWksGpmUw7lsN208wT79jb9oBeiMVVtYPNKqhCRvkPuSYOiDv8aYjX7OPW2xtcxUpz8eS78mjvGDjKw0g=="],
+
+    "@opencode-ai/cli-linux-x64-baseline-musl": ["@opencode-ai/cli-linux-x64-baseline-musl@0.0.0-beta-19271", "", { "os": "linux", "cpu": "x64" }, "sha512-l81mUfb7SgEr/EylzuBVPfM0GAXc8+FdSZteYTLDoqc1ha7QFY1YpjdPAklxDyDI4lXejaFP8TIP+A+PuEeN7A=="],
+
+    "@opencode-ai/cli-linux-x64-musl": ["@opencode-ai/cli-linux-x64-musl@0.0.0-beta-19271", "", { "os": "linux", "cpu": "x64" }, "sha512-iwCgcAWWPmSu7cWyF+WJeT+w5UizfAV7vljUvow9AHlB+GrN8pU8YunMqSoXG/gbfkfulvAmqmT8DFHU4dvegg=="],
+
+    "@opencode-ai/cli-windows-arm64": ["@opencode-ai/cli-windows-arm64@0.0.0-beta-19271", "", { "os": "win32", "cpu": "arm64" }, "sha512-F6QdhjWxORYAjK0vFeYAYgiiSedCxdsxUrqfiUPGxE59odc1IVBamcQ+/yJUsqy9wf11CSB/YnOT8FPIy8Nxww=="],
+
+    "@opencode-ai/cli-windows-x64": ["@opencode-ai/cli-windows-x64@0.0.0-beta-19271", "", { "os": "win32", "cpu": "x64" }, "sha512-tmKBQTkXOY4dsLdK3vUxVmVt62y9/cn9L5uo/wjglCENlZ55Z+NacC9bUI7i9JBj3DyOwqbmDkari+qO79tong=="],
+
+    "@opencode-ai/cli-windows-x64-baseline": ["@opencode-ai/cli-windows-x64-baseline@0.0.0-beta-19271", "", { "os": "win32", "cpu": "x64" }, "sha512-8g0h69T2SvaLljSCZmIRzb5GK+3xv9I9a2vYjVfZK2lQmWs9QaXNqkOwsO1msogQNKlLII4omtSaEUt3DnX7gA=="],
+  }
+}

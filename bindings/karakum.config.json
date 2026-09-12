@@ -1,0 +1,41 @@
+{
+  "libraryName": "@opencode-ai/plugin",
+  "input": ".karakum-sanitized/dist/**/*.d.ts",
+  "output": "build/generated/kotlin",
+  "moduleNameMapper": {
+    "^@opencode-ai/plugin/\\.karakum-sanitized/dist/(.*)$": "@opencode-ai/plugin/$1"
+  },
+  "packageNameMapper": {
+    "^opencode/ai/plugin/.*karakum-sanitized/dist/": "opencode/plugin/",
+    "(^|/)plugin\\.kt$": "$1pluginModule.kt",
+    "(^|/)context\\.kt$": "$1contextModule.kt",
+    "(^|/)registration\\.kt$": "$1registrationModule.kt"
+  },
+  "importInjector": {
+    "^opencode/plugin/promise/.*\\.kt$": [
+      "opencode.plugin.App",
+      "opencode.plugin.PluginOptions",
+      "opencode.plugin.StorageEntry",
+      "opencode.plugin.StorageScanOptions",
+      "opencode.plugin.StorageScanResult",
+      "opencode.plugin.WorktreeCreateInput",
+      "opencode.plugin.WorktreeRemoveInput",
+      "opencode.plugin.WorktreeResult",
+      "opencode.plugin.WorktreeEntry"
+    ],
+    "^opencode/plugin/effect/.*\\.kt$": [
+      "opencode.plugin.App",
+      "opencode.plugin.PluginOptions",
+      "opencode.plugin.StorageEntry",
+      "opencode.plugin.StorageScanOptions",
+      "opencode.plugin.StorageScanResult",
+      "opencode.plugin.WorktreeCreateInput",
+      "opencode.plugin.WorktreeRemoveInput",
+      "opencode.plugin.WorktreeResult",
+      "opencode.plugin.WorktreeEntry"
+    ]
+  },
+  "conflictResolutionStrategy": {
+    ".*prepareSource\\.kt$": "replace"
+  }
+}
