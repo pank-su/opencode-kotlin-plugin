@@ -1,3 +1,4 @@
 rootProject.name = "opencode-kotlin-secret-guard"
 
-include(":bindings")
+include(":core")
+include(":features")

@@ -23,7 +23,7 @@ kotlin {
 
     sourceSets {
         jsMain.dependencies {
-            implementation(project(":bindings"))
+            implementation(project(":features"))
         }
         jsTest.dependencies {
             implementation(kotlin("test"))
@@ -49,4 +49,6 @@ tasks.register<Exec>("smokePlugin") {
 
 tasks.named("check") {
     dependsOn("smokePlugin")
+    dependsOn(":core:check")
+    dependsOn(":features:check")
 }

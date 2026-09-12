@@ -54,21 +54,24 @@ class OpenCodePluginTest {
     }
 
     @Test
-    fun deniesReadPermissionForSensitivePath() {
+    fun deniesReadPermissionForSensitivePath(): Promise<Unit> {
         var evaluate: dynamic = null
         val context = fakeContext(
             onPermissionHook = { _, callback -> evaluate = callback },
         )
         val plugin: dynamic = createPluginDefinition()
-        plugin.setup(context)
 
         val event: dynamic = js("({})")
         event.action = "read"
         event.resources = arrayOf("/project/.env")
         event.effect = "allow"
-        evaluate(event)
 
-        assertEquals("deny", event.effect as String)
+        return plugin.setup(context)
+            .unsafeCast<Promise<dynamic>>()
+            .then<dynamic> { evaluate(event) }
+            .then<Unit> {
+                assertEquals("deny", event.effect as String)
+            }
     }
 
     @Test
@@ -78,7 +81,6 @@ class OpenCodePluginTest {
             onPermissionHook = { _, callback -> evaluate = callback },
         )
         val plugin: dynamic = createPluginDefinition()
-        plugin.setup(context)
 
         val directory = TestFileSystem.mkdtempSync("/tmp/opencode-kotlin-guard-")
         val sensitivePath = "$directory/.env"
@@ -91,11 +93,41 @@ class OpenCodePluginTest {
         event.resources = arrayOf(aliasPath)
         event.effect = "allow"
 
-        return evaluate(event)
+        return plugin.setup(context)
             .unsafeCast<Promise<dynamic>>()
+            .then<dynamic> { evaluate(event) }
             .then<Unit> {
                 try {
                     assertEquals("deny", event.effect as String)
+                } finally {
+                    val options: dynamic = js("({ recursive: true, force: true })")
+                    TestFileSystem.rmSync(directory, options)
+                }
+            }
+    }
+
+    @Test
+    fun deniesWhenCanonicalizationFails(): Promise<Unit> {
+        var evaluate: dynamic = null
+        val context = fakeContext(
+            onPermissionHook = { _, callback -> evaluate = callback },
+        )
+        val plugin: dynamic = createPluginDefinition()
+        val directory = TestFileSystem.mkdtempSync("/tmp/opencode-kotlin-missing-")
+        val missingPath = "$directory/safe.txt"
+
+        val event: dynamic = js("({})")
+        event.action = "read"
+        event.resources = arrayOf(missingPath)
+        event.effect = "allow"
+
+        return plugin.setup(context)
+            .unsafeCast<Promise<dynamic>>()
+            .then<dynamic> { evaluate(event) }
+            .then<Unit> {
+                try {
+                    assertEquals("deny", event.effect as String)
+                    assertTrue((event.message as String).contains("could not be canonicalized"))
                 } finally {
                     val options: dynamic = js("({ recursive: true, force: true })")
                     TestFileSystem.rmSync(directory, options)
@@ -120,50 +152,68 @@ class OpenCodePluginTest {
     }
 
     @Test
-    fun addsNamespacedPathInspectionTool() {
+    fun addsNamespacedPathInspectionTool(): Promise<Unit> {
         var transform: dynamic = null
         val context = fakeContext(
             onToolTransform = { callback -> transform = callback },
         )
         val plugin: dynamic = createPluginDefinition()
-        plugin.setup(context)
 
-        var namespace: dynamic = null
-        var toolDefinition: dynamic = null
-        val editor: dynamic = js("({})")
-        editor.namespace = { value: dynamic -> namespace = value }
-        editor.add = { value: dynamic -> toolDefinition = value }
-        transform(editor)
+        return plugin.setup(context)
+            .unsafeCast<Promise<dynamic>>()
+            .then<Unit> {
+                var namespace: dynamic = null
+                var toolDefinition: dynamic = null
+                val editor: dynamic = js("({})")
+                editor.namespace = { value: dynamic -> namespace = value }
+                editor.add = { value: dynamic -> toolDefinition = value }
+                transform(editor)
 
-        assertEquals("kotlin_guard", namespace.name as String)
-        assertEquals("inspect_path", toolDefinition.name as String)
-        assertEquals("kotlin_guard", toolDefinition.options.namespace as String)
+                assertEquals("kotlin_guard", namespace.name as String)
+                assertEquals("inspect_path", toolDefinition.name as String)
+                assertEquals("kotlin_guard", toolDefinition.options.namespace as String)
+            }
     }
 
     @Test
     fun inspectionToolReportsBlockedPath(): Promise<Unit> {
         var transform: dynamic = null
+        var aliasPath: String? = null
+        var directory: String? = null
         val context = fakeContext(
             onToolTransform = { callback -> transform = callback },
         )
         val plugin: dynamic = createPluginDefinition()
-        plugin.setup(context)
 
-        var toolDefinition: dynamic = null
-        val editor: dynamic = js("({})")
-        editor.namespace = { _: dynamic -> }
-        editor.add = { value: dynamic -> toolDefinition = value }
-        transform(editor)
-
-        val input: dynamic = js("({})")
-        input.path = "/project/.env"
-        val toolContext: dynamic = js("({})")
-        return toolDefinition.execute(input, toolContext)
+        return plugin.setup(context)
             .unsafeCast<Promise<dynamic>>()
+            .then<dynamic> {
+                var toolDefinition: dynamic = null
+                val editor: dynamic = js("({})")
+                editor.namespace = { _: dynamic -> }
+                editor.add = { value: dynamic -> toolDefinition = value }
+                transform(editor)
+
+                directory = TestFileSystem.mkdtempSync("/tmp/opencode-kotlin-tool-")
+                val sensitivePath = "${checkNotNull(directory)}/.env"
+                aliasPath = "${checkNotNull(directory)}/safe.txt"
+                TestFileSystem.writeFileSync(sensitivePath, "not-a-real-secret")
+                TestFileSystem.symlinkSync(sensitivePath, checkNotNull(aliasPath))
+
+                val input: dynamic = js("({})")
+                input.path = aliasPath
+                toolDefinition.execute(input, js("({})"))
+            }
             .then<Unit> { result ->
                 val content = result.content as String
-                assertTrue(content.contains("BLOCKED"))
-                assertTrue(content.contains("/project/.env"))
+                try {
+                    assertTrue(content.contains("BLOCKED"))
+                    assertTrue(content.contains(checkNotNull(aliasPath)))
+                    assertTrue(content.contains(".env"))
+                } finally {
+                    val options: dynamic = js("({ recursive: true, force: true })")
+                    TestFileSystem.rmSync(checkNotNull(directory), options)
+                }
             }
     }
 

@@ -1,5 +1,5 @@
 {
-  "name": "opencode-kotlin-bindings-generator",
+  "name": "opencode-kotlin-core-generator",
   "private": true,
   "type": "module",
   "scripts": {

@@ -6,7 +6,8 @@ import { spawnSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const bindingsRoot = path.join(root, "bindings")
+const generatorRoot = path.join(root, "generator")
+const coreRoot = path.join(root, "core")
 
 function walk(directory) {
   const result = []
@@ -21,13 +22,13 @@ function walk(directory) {
 function generatedDigest() {
   const digest = crypto.createHash("sha256")
   const targets = [
-    path.join(bindingsRoot, "build", "generated", "kotlin"),
-    path.join(bindingsRoot, "build", "bindings-manifest.json"),
+    path.join(coreRoot, "build", "generated", "kotlin"),
+    path.join(coreRoot, "build", "bindings-manifest.json"),
   ]
   for (const target of targets) {
     const files = fs.statSync(target).isDirectory() ? walk(target) : [target]
     for (const file of files) {
-      digest.update(path.relative(bindingsRoot, file)).update("\0")
+      digest.update(path.relative(coreRoot, file).split(path.sep).join("/")).update("\0")
       digest.update(fs.readFileSync(file)).update("\0")
     }
   }
@@ -36,7 +37,7 @@ function generatedDigest() {
 
 const before = generatedDigest()
 const result = spawnSync("bun", ["run", "generate"], {
-  cwd: bindingsRoot,
+  cwd: generatorRoot,
   encoding: "utf8",
   maxBuffer: 16 * 1024 * 1024,
 })

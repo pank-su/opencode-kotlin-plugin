@@ -1,6 +1,6 @@
-# OpenCode Kotlin Secret Guard
+# OpenCode Kotlin
 
-Экспериментальный, но рабочий плагин OpenCode 2, написанный на Kotlin/JS. Он показывает, как использовать Kotlin не только за MCP-границей, а непосредственно внутри процесса OpenCode через V2 plugin API.
+Kotlin/JS-библиотека для разработки in-process плагинов OpenCode 2 и демонстрационный Secret Guard plugin. Репозиторий разделяет generated ABI, handwritten features DSL, build-time generator и пример-потребитель.
 
 ## Что делает плагин
 
@@ -25,23 +25,49 @@ Kotlin/JS ── production ESM ── двухстрочный default-export a
 
 Kotlin/JS экспортирует `createPluginDefinition()` как именованный ESM-экспорт. OpenCode ожидает plugin definition в `default export`. Поэтому файл `plugin/index.mjs` только соединяет эти два контракта; поведение плагина, hook и tool реализованы в Kotlin.
 
-## Сгенерированные Kotlin bindings
-
-Модуль `:bindings` строит Kotlin declarations из закреплённого `@opencode-ai/plugin@0.0.0-beta-19271` по схеме, близкой к JetBrains `kotlin-wrappers`:
+## Архитектура библиотеки
 
 ```text
-57 upstream .d.ts
-   → TypeScript AST compatibility projection
-   → Karakum
-   → 340 Kotlin external declarations
-   → Kotlin compiler и manifest-проверка
+generator/ ──generates──► core/ ◄──depends── features/ ◄──depends── Secret Guard example
 ```
 
-Генератор охватывает все 208 именованных exports собственных declarations пакета: shared/core, Promise, Effect и TUI. Отдельный contract test проверяет, что export не потерян, пути сборочной машины не попали в результат и не осталось `unhandled import` comments. Повторная генерация проверяется побайтным SHA-256.
+- `generator/` — Node/TypeScript AST/Karakum tooling; не входит в runtime и не публикуется;
+- `:core` — только generated `external` declarations для shared, Promise, Effect и TUI API;
+- `:features` — handwritten DSL, JSON Schema builders, typed tool helpers и lifecycle orchestration;
+- корневой Kotlin target — Secret Guard как настоящий потребитель `:features`.
 
-Граница типов намеренная: рекурсивный граф SDK содержит ещё 303 declaration-файла из `effect`, `@opencode-ai/schema`, `@opencode-ai/client`, AI SDK и других библиотек. Генератор не копирует целиком Effect standard library; сложные внешние и type-level конструкции представлены как opaque `Any?`. Все домены и операции plugin SDK остаются доступны, но для этих внешних значений возможен явный `unsafeCast` в handwritten adapters.
+`generator` обрабатывает 57 собственных `.d.ts` закреплённого `@opencode-ai/plugin@0.0.0-beta-19271`, выпускает 340 Kotlin declarations и проверяет 208 direct exports и все re-export declarations. Транзитивные Effect/schema/client типы образуют явно зафиксированную opaque boundary вместо копирования всей Effect standard library.
 
-Generated-файлы находятся только в `bindings/build/generated/kotlin` и вручную не редактируются. Изменения вносятся в AST projector и Karakum config.
+Пример `features` DSL:
+
+```kotlin
+private external interface Input {
+    val path: String
+}
+
+val plugin = opencodePlugin("example.guard") {
+    permissions {
+        evaluate { event ->
+            if (event.action == "read") event.deny("Blocked")
+        }
+    }
+    tools {
+        transform {
+            namespace("guard", "Guard tools")
+            tool<Input, ToolResult>("inspect_path") {
+                description = "Inspect a path"
+                input(objectSchema {
+                    string("path", required = true)
+                    additionalProperties = false
+                })
+                execute { input, _ -> toolResult(content = input.path) }
+            }
+        }
+    }
+}
+```
+
+Generated-файлы находятся только в `core/build/generated/kotlin`. `features` не содержит generated-код, а `core` не содержит DSL.
 
 ## Требования
 
@@ -108,10 +134,12 @@ build/plugin/
 
 | Команда | Назначение |
 |---|---|
-| `./gradlew jsNodeTest` | Kotlin/JS unit и contract tests |
-| `bun run generate:bindings` | Полная регенерация Kotlin declarations из закреплённого SDK |
-| `bun run test:bindings` | Полнота exports, детерминизм и отсутствие `dynamic` в production interop |
-| `./gradlew :bindings:compileKotlinJs` | Компиляция всех generated declarations |
+| `./gradlew jsNodeTest` | Тесты Secret Guard example |
+| `bun run generate:core` | Регенерация `:core` из закреплённого SDK |
+| `bun run test:core` | Полнота exports/re-exports, nullability и детерминизм codegen |
+| `./gradlew :core:compileKotlinJs` | Компиляция generated ABI |
+| `./gradlew :features:jsNodeTest` | Тесты DSL, tools/schema builders и lifecycle cleanup |
+| `./gradlew :core:publishToMavenLocal :features:publishToMavenLocal` | Публикация библиотек в Maven Local |
 | `./gradlew assemblePlugin` | Production ESM и готовый каталог плагина |
 | `./gradlew check` | Kotlin-тесты и smoke-import собранного ESM |
 | `bun run verify:opencode` | Проверка появления плагина в реальном OpenCode 2 |
@@ -120,12 +148,13 @@ build/plugin/
 ## Структура
 
 ```text
-bindings/                                      — production generator и отдельный Kotlin/JS-модуль
-bindings/scripts/sanitize-full-sdk.mjs         — TypeScript AST compatibility projection
-bindings/scripts/finalize-bindings.mjs         — coverage manifest и post-processing
-src/jsMain/kotlin/.../SensitivePathPolicy.kt  — чистая политика путей
-src/jsMain/kotlin/.../OpenCodePlugin.kt       — typed definition, hook и tool
-src/jsTest/kotlin/...                         — Kotlin/JS-тесты
+generator/                                     — непубликуемый TypeScript/Karakum toolchain
+core/                                          — generated ABI Kotlin/JS library
+features/                                      — handwritten DSL и runtime helpers
+src/jsMain/kotlin/.../SensitivePathPolicy.kt  — политика example-плагина
+src/jsMain/kotlin/.../PathInspection.kt       — shared canonical path inspector example
+src/jsMain/kotlin/.../OpenCodePlugin.kt       — Secret Guard на features DSL
+src/jsTest/kotlin/...                         — integration tests example-плагина
 plugin/index.mjs                              — default-export adapter
 scripts/test-bindings-*.mjs                   — contract и deterministic проверки codegen
 scripts/smoke-plugin.mjs                      — проверка импорта артефакта
@@ -138,7 +167,9 @@ scripts/verify-opencode.mjs                   — проверка настоя�
 
 - hook контролирует разрешение `read`, но не анализирует произвольные shell-команды вроде `cat .env`;
 - определение секретности основано на запрошенном пути и канонической цели символической ссылки, а не на содержимом;
-- `realpath` закрывает symlink aliases, но hardlink невозможно надёжно распознать по одному имени без отдельного inode/index policy;
+- `realpath` закрывает обычные symlink aliases; ошибка canonicalization блокирует путь fail-closed;
+- между `realpath` и фактическим чтением остаётся TOCTOU race: OpenCode hook передаёт путь, а не уже открытый файловый дескриптор, поэтому атомарно связать проверку и read невозможно;
+- hardlink невозможно надёжно распознать по одному имени без отдельного inode/index policy;
 - другие плагины и внешние процессы могут получать файлы иными способами;
 - обычные `.env.*` шаблоны считаются безопасными только тогда, когда их каноническая цель также безопасна.
 

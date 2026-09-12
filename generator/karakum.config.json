@@ -1,7 +1,7 @@
 {
   "libraryName": "@opencode-ai/plugin",
   "input": ".karakum-sanitized/dist/**/*.d.ts",
-  "output": "build/generated/kotlin",
+  "output": "../core/build/generated/kotlin",
   "moduleNameMapper": {
     "^@opencode-ai/plugin/\\.karakum-sanitized/dist/(.*)$": "@opencode-ai/plugin/$1"
   },

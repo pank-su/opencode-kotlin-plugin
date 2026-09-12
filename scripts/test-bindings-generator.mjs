@@ -4,9 +4,9 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
-const bindingsRoot = path.join(root, "bindings")
-const generatedRoot = path.join(bindingsRoot, "build", "generated", "kotlin")
-const manifestPath = path.join(bindingsRoot, "build", "bindings-manifest.json")
+const coreRoot = path.join(root, "core")
+const generatedRoot = path.join(coreRoot, "build", "generated", "kotlin")
+const manifestPath = path.join(coreRoot, "build", "bindings-manifest.json")
 
 assert.ok(fs.existsSync(manifestPath), `missing generated manifest: ${manifestPath}`)
 const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
@@ -14,6 +14,11 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
 assert.equal(manifest.sdk.package, "@opencode-ai/plugin")
 assert.equal(manifest.sdk.version, "0.0.0-beta-19271")
 assert.equal(manifest.sourceFileCount, 57)
+assert.equal(manifest.pathFormat, "posix")
+assert.deepEqual(manifest.sourceFiles, [...manifest.sourceFiles].sort())
+assert.equal(manifest.reExports.total, 49)
+assert.equal(manifest.reExports.unresolvedLocal.length, 0)
+assert.ok(manifest.reExports.external.length > 0, "external re-exports must be tracked as opaque")
 assert.equal(manifest.missingDeclarations.length, 0, `missing declarations: ${manifest.missingDeclarations.join(", ")}`)
 
 function kotlinFiles(directory) {
@@ -40,6 +45,16 @@ for (const relative of [
   "opencode/plugin/tui/UI.kt",
 ]) {
   assert.ok(fs.existsSync(path.join(generatedRoot, relative)), `missing representative API: ${relative}`)
+}
+
+for (const [relative, pattern] of [
+  ["opencode/plugin/promise/ToolEditor.kt", /fun get\(id: String\): .*\?/],
+  ["opencode/plugin/effect/ToolEditor.kt", /fun get\(id: String\): .*\?/],
+  ["opencode/plugin/tui/Dialog.kt", /fun confirm\(options: DialogConfirmOptions\): js\.promise\.Promise<Boolean\?>/],
+  ["opencode/plugin/tui/Dialog.kt", /fun prompt\(options: DialogPromptOptions\): js\.promise\.Promise<String\?>/],
+]) {
+  const content = fs.readFileSync(path.join(generatedRoot, relative), "utf8")
+  assert.match(content, pattern, `nullable union was lost in ${relative}`)
 }
 
 for (const file of files) {

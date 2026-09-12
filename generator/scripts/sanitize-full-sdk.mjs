@@ -16,7 +16,11 @@ function declarations(directory) {
   })
 }
 
-const inputFiles = declarations(path.join(packageRoot, "dist"))
+const distRoot = path.join(packageRoot, "dist")
+const toPosix = value => value.split(path.sep).join("/")
+const inputFiles = declarations(distRoot).sort((left, right) =>
+  toPosix(path.relative(distRoot, left)).localeCompare(toPosix(path.relative(distRoot, right))),
+)
 const program = ts.createProgram(inputFiles, {
   module: ts.ModuleKind.ESNext,
   moduleResolution: ts.ModuleResolutionKind.Bundler,
@@ -126,16 +130,29 @@ for (const fileName of inputFiles) {
     if (ts.isConditionalTypeNode(node) || ts.isMappedTypeNode(node) || ts.isInferTypeNode(node)) return unknownType()
 
     if (ts.isUnionTypeNode(node)) {
+      const hasNullish = node.types.some((type) =>
+        type.kind === ts.SyntaxKind.UndefinedKeyword || type.kind === ts.SyntaxKind.NullKeyword,
+      )
       const meaningful = node.types.filter((type) =>
         type.kind !== ts.SyntaxKind.UndefinedKeyword &&
         type.kind !== ts.SyntaxKind.NullKeyword &&
         type.kind !== ts.SyntaxKind.NeverKeyword,
       )
-      if (meaningful.length === 1) return safeType(meaningful[0])
-      if (meaningful.length > 0 && meaningful.every((type) =>
+      let projected
+      if (meaningful.length === 1) {
+        projected = safeType(meaningful[0])
+      } else if (meaningful.length > 0 && meaningful.every((type) =>
         ts.isLiteralTypeNode(type) && ts.isStringLiteral(type.literal),
-      )) return factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
-      return unknownType()
+      )) {
+        projected = factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
+      } else {
+        projected = unknownType()
+      }
+      if (!hasNullish || projected.kind === ts.SyntaxKind.UnknownKeyword) return projected
+      return factory.createUnionTypeNode([
+        projected,
+        factory.createKeywordTypeNode(ts.SyntaxKind.UndefinedKeyword),
+      ])
     }
 
     if (ts.isIntersectionTypeNode(node)) {

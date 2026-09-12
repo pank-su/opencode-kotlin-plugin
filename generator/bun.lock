@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "opencode-kotlin-bindings-generator",
+      "name": "opencode-kotlin-core-generator",
       "devDependencies": {
         "@opencode-ai/plugin": "0.0.0-beta-19271",
         "karakum": "1.0.0-alpha.112",
