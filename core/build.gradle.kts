@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "us.panks.opencode"
-version = "0.1.0"
+version = "0.2.0"
 
 repositories {
     mavenCentral()
@@ -54,6 +54,7 @@ kotlin {
         kotlin.srcDir(layout.buildDirectory.dir("generated/kotlin"))
         dependencies {
             api("org.jetbrains.kotlin-wrappers:kotlin-js:2026.5.7")
+            implementation(npm("@opencode-ai/plugin", "0.0.0-beta-19271"))
         }
     }
 }
@@ -69,9 +70,9 @@ tasks.matching { it.name.endsWith("SourcesJar") }.configureEach {
 publishing {
     publications.withType<MavenPublication>().configureEach {
         artifactId = if (name == "kotlinMultiplatform") {
-            "opencode-kotlin-core"
+            "core"
         } else {
-            "opencode-kotlin-core-$name"
+            "core-$name"
         }
     }
 }

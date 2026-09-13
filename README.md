@@ -1,49 +1,119 @@
 # OpenCode Kotlin
 
-Kotlin/JS-библиотека для разработки in-process плагинов OpenCode 2 и демонстрационный Secret Guard plugin. Репозиторий разделяет generated ABI, handwritten features DSL, build-time generator и пример-потребитель.
+Kotlin/JS-библиотека для in-process плагинов OpenCode 2. Поддерживает два равноправных стиля:
 
-## Что делает плагин
+- **DSL** — явная сборка plugin definition;
+- **annotations + KSP** — compile-time генерация того же DSL и ESM entrypoint.
 
-- регистрирует permission hook `evaluate`;
-- запрещает действие `read` для потенциально секретных путей;
-- добавляет инструмент `kotlin_guard_inspect_path`, проверяющий путь без чтения файла;
-- допускает обычные файлы-шаблоны `.env.example`, `.env.sample` и `.env.template`;
-- распознаёт `.env`, варианты `.env.*` и стандартные имена приватных SSH-ключей;
-- перед разрешением чтения проверяет также каноническую цель символической ссылки через `realpath`.
+Secret Guard в корне репозитория служит рабочим annotation-first примером и реально загружается OpenCode.
+
+## Модули
 
 ```text
-OpenCode 2
-   │
-   ├── permission hook ──► Kotlin SensitivePathPolicy
-   │
-   └── kotlin_guard_inspect_path ──► Kotlin SensitivePathPolicy
-                                      │
-Kotlin/JS ── production ESM ── двухстрочный default-export adapter
+generator ──generates──▶ core
+
+permissions ──depends──▶ plugin ──depends──▶ core
+tools ────────depends──▶ plugin
+tui ──────────depends──────────────────────▶ core
+
+processor ──generates Kotlin from annotations; runtime dependency отсутствует
 ```
 
-## Почему есть ESM-адаптер
+| Artifact | Назначение |
+|---|---|
+| `core` | Generated `external` declarations полного OpenCode SDK |
+| `plugin` | Базовый DSL, setup lifecycle и `@OpenCodePlugin` |
+| `permissions` | Permission DSL, helpers и `@OpenCodePermission` |
+| `tools` | Tool DSL, kotlinx.serialization schema inference и `@OpenCodeTool` |
+| `tui` | Отдельный TUI definition, dialog/toast API и TUI annotations |
+| `processor` | KSP2 processor для annotation-first API |
 
-Kotlin/JS экспортирует `createPluginDefinition()` как именованный ESM-экспорт. OpenCode ожидает plugin definition в `default export`. Поэтому файл `plugin/index.mjs` только соединяет эти два контракта; поведение плагина, hook и tool реализованы в Kotlin.
+`permissions`, `tools` и `tui` не тянут друг друга. Подключаются только нужные capabilities.
 
-## Архитектура библиотеки
-
-```text
-generator/ ──generates──► core/ ◄──depends── features/ ◄──depends── Secret Guard example
-```
-
-- `generator/` — Node/TypeScript AST/Karakum tooling; не входит в runtime и не публикуется;
-- `:core` — только generated `external` declarations для shared, Promise, Effect и TUI API;
-- `:features` — handwritten DSL, JSON Schema builders, typed tool helpers и lifecycle orchestration;
-- корневой Kotlin target — Secret Guard как настоящий потребитель `:features`.
-
-`generator` обрабатывает 57 собственных `.d.ts` закреплённого `@opencode-ai/plugin@0.0.0-beta-19271`, выпускает 340 Kotlin declarations и проверяет 208 direct exports и все re-export declarations. Транзитивные Effect/schema/client типы образуют явно зафиксированную opaque boundary вместо копирования всей Effect standard library.
-
-Пример `features` DSL:
+## Короткие зависимости
 
 ```kotlin
-private external interface Input {
-    val path: String
+repositories {
+    mavenLocal() // либо репозиторий, куда опубликованы artifacts
 }
+
+kotlin {
+    sourceSets {
+        jsMain.dependencies {
+            implementation("us.panks.opencode:permissions:0.2.0")
+            implementation("us.panks.opencode:tools:0.2.0")
+            // implementation("us.panks.opencode:tui:0.2.0")
+        }
+    }
+}
+```
+
+Для raw generated API достаточно:
+
+```kotlin
+implementation("us.panks.opencode:core:0.2.0")
+```
+
+## Вариант 1: annotations
+
+```kotlin
+@Serializable
+data class InspectInput(val path: String)
+
+@OpenCodePlugin("example.guard")
+class GuardPlugin {
+    @OpenCodePermission
+    suspend fun guardRead(event: PermissionEvaluation) {
+        if (event.action == "read" && event.resourcePaths.any { it.endsWith(".env") }) {
+            event.deny("Reading environment files is forbidden")
+        }
+    }
+
+    @OpenCodeTool(
+        name = "inspect_path",
+        description = "Inspect a path",
+        namespace = "guard",
+        namespaceDescription = "Guard tools",
+    )
+    suspend fun inspect(
+        input: InspectInput,
+        context: ToolContext,
+    ): ToolResult = toolResult(content = input.path)
+}
+```
+
+KSP генерирует:
+
+- `createPluginDefinition()` с `@JsExport`;
+- permission registrations;
+- tool namespace и definition;
+- JSON Schema из `InspectInput.serializer().descriptor`;
+- декодирование plain JS input в `InspectInput`;
+- Promise bridge для `suspend` handlers.
+
+Настройка consumer-проекта:
+
+```kotlin
+plugins {
+    kotlin("multiplatform") version "2.3.21"
+    kotlin("plugin.serialization") version "2.3.21"
+    id("com.google.devtools.ksp") version "2.3.7"
+}
+
+dependencies {
+    add("kspJs", "us.panks.opencode:processor:0.2.0")
+}
+```
+
+Класс plugin должен быть top-level, не `abstract`, иметь конструктор без аргументов. Все annotated handlers обязаны быть `suspend` и возвращать прямой Kotlin-тип (`Unit` или `ToolResult`), а не `Promise`. Они не могут быть `private`/`protected`. Ошибочные сигнатуры, unsupported serializers, duplicate tool names и conflicting namespaces останавливают компиляцию.
+
+## Вариант 2: DSL
+
+Те же runtime-модули можно использовать без processor:
+
+```kotlin
+@Serializable
+data class InspectInput(val path: String)
 
 val plugin = opencodePlugin("example.guard") {
     permissions {
@@ -54,126 +124,137 @@ val plugin = opencodePlugin("example.guard") {
     tools {
         transform {
             namespace("guard", "Guard tools")
-            tool<Input, ToolResult>("inspect_path") {
+            tool<InspectInput>("inspect_path") {
                 description = "Inspect a path"
-                input(objectSchema {
-                    string("path", required = true)
-                    additionalProperties = false
-                })
-                execute { input, _ -> toolResult(content = input.path) }
+                options {
+                    namespace = "guard"
+                    codeMode = false
+                }
+                execute { input, _ ->
+                    toolResult(content = input.path)
+                }
             }
         }
     }
 }
 ```
 
-Generated-файлы находятся только в `core/build/generated/kotlin`. `features` не содержит generated-код, а `core` не содержит DSL.
+В DSL `evaluate`, `execute` и `tuiPlugin` также принимают suspend lambdas: ergonomic API всегда пересекает JS-границу как Promise, без параллельных sync/async методов.
 
-## Требования
+`objectSchema { ... }` остаётся только escape hatch для raw external/non-serializable inputs. Для обычной Kotlin-модели schema не дублируется.
 
-- JDK 17 или новее;
-- Node.js;
-- Bun — для установки закреплённой версии тестового OpenCode 2 CLI;
-- Gradle отдельно не нужен: в репозитории есть wrapper.
+Runtime schema inference поддерживает primitives, enums, classes, lists, nullable values, optional/default properties и maps со строковыми ключами. Unknown fields запрещены. Recursive и polymorphic/contextual descriptors отклоняются fail-fast.
 
-Проверенные версии:
+Annotation mode дополнительно и заранее отклоняет custom serializers, generic/value/sealed/abstract root models и недоказуемые contextual/polymorphic свойства. Для них используется явный DSL serializer/schema overload.
 
-- Kotlin `2.3.21`;
-- Gradle `9.3.1`;
-- OpenCode 2 CLI и plugin SDK `0.0.0-beta-19271`;
-- Karakum `1.0.0-alpha.112`;
-- TypeScript `6.0.2`.
+## TUI как отдельная capability
 
-OpenCode 2 и его plugin API быстро меняются, поэтому версии CLI и SDK намеренно закреплены вместе без диапазона.
+### TUI annotations
 
-## Быстрый старт
+```kotlin
+import js.promise.await
 
-```bash
-bun install
-bun run build
-bun run check
-```
+@OpenCodeTuiPlugin("example.tui")
+class GuardTui {
+    @TuiStart
+    suspend fun start(context: TuiContext) {
+        context.toast(
+            message = "Guard loaded",
+            variant = ToastVariants.SUCCESS,
+        )
 
-Собранный пакет появится в `build/plugin/`:
-
-```text
-build/plugin/
-├── index.mjs
-├── package.json
-└── kotlin/
-    ├── opencode-kotlin-secret-guard.mjs
-    └── opencode-kotlin-secret-guard.mjs.map
-```
-
-Проектный `opencode.jsonc` уже подключает этот каталог:
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugins": ["./build/plugin"]
+        val confirmed = context.confirm(
+            title = "Continue?",
+            message = "Proceed with the operation?",
+        ).await()
+    }
 }
 ```
 
-Проверить загрузку вручную:
+По умолчанию генерируется `createTuiPluginDefinition()`.
+
+### TUI DSL
+
+```kotlin
+val tui = tuiPlugin("example.tui") { context ->
+    context.toast("Ready", variant = ToastVariants.INFO)
+}
+```
+
+`tuiPlugin` всегда выполняет suspend setup и возвращает Promise на JS-границе. Для setup с cleanup используется `tuiPluginWithCleanup`; его public cleanup type — `suspend () -> Unit`, автоматически адаптируемый в upstream Promise-returning function.
+
+Модуль предоставляет `toast`, `alert`, `confirm`, `prompt` и generic `select`. `alert` возвращает `Promise<Unit>`, cancellation остальных upstream dialogs сохраняется как nullable result.
+
+## Generator и core
+
+`generator/` — непубликуемый Bun/TypeScript/Karakum toolchain. Он обрабатывает 57 `.d.ts` закреплённого `@opencode-ai/plugin@0.0.0-beta-19271` и пишет только в `core/build/generated/kotlin`.
+
+Проверки фиксируют:
+
+- 340 Kotlin declaration files;
+- 208 direct declarations;
+- все 49 re-export declarations;
+- TypeScript `null | undefined` semantics;
+- POSIX-normalized deterministic manifest;
+- повторяемый SHA-256 regeneration digest.
+
+`core` объявляет точную npm runtime dependency `@opencode-ai/plugin@0.0.0-beta-19271`, поэтому Gradle/Kotlin JS consumers получают нужный package автоматически.
+
+## Secret Guard example
+
+Example:
+
+- запрещает `read` для `.env`, `.env.*` и стандартных SSH private keys;
+- разрешает настоящие `.env.example`, `.env.sample`, `.env.template`;
+- проверяет requested и canonical path;
+- блокирует path fail-closed при ошибке `realpath`;
+- использует один inspector для permission hook и `kotlin_guard_inspect_path`;
+- не читает содержимое защищаемых файлов.
+
+Сборка и реальная проверка:
 
 ```bash
-./node_modules/.bin/opencode2 plugin list
+bun install
+bun run check
 ```
 
-В таблице должна появиться строка с ID `panks.kotlin-secret-guard`, типом `local` и путём `build/plugin/index.mjs`.
-
-Запустить OpenCode в проекте:
+OpenCode config уже подключает `./build/plugin`. Проверка activation:
 
 ```bash
-./node_modules/.bin/opencode2 .
+bun run verify:opencode
 ```
 
-После загрузки агенту доступен инструмент `kotlin_guard_inspect_path` с аргументом `path`.
+## Публикация в Maven Local
 
-## Команды
-
-| Команда | Назначение |
-|---|---|
-| `./gradlew jsNodeTest` | Тесты Secret Guard example |
-| `bun run generate:core` | Регенерация `:core` из закреплённого SDK |
-| `bun run test:core` | Полнота exports/re-exports, nullability и детерминизм codegen |
-| `./gradlew :core:compileKotlinJs` | Компиляция generated ABI |
-| `./gradlew :features:jsNodeTest` | Тесты DSL, tools/schema builders и lifecycle cleanup |
-| `./gradlew :core:publishToMavenLocal :features:publishToMavenLocal` | Публикация библиотек в Maven Local |
-| `./gradlew assemblePlugin` | Production ESM и готовый каталог плагина |
-| `./gradlew check` | Kotlin-тесты и smoke-import собранного ESM |
-| `bun run verify:opencode` | Проверка появления плагина в реальном OpenCode 2 |
-| `bun run check` | Полный локальный набор проверок |
-
-## Структура
-
-```text
-generator/                                     — непубликуемый TypeScript/Karakum toolchain
-core/                                          — generated ABI Kotlin/JS library
-features/                                      — handwritten DSL и runtime helpers
-src/jsMain/kotlin/.../SensitivePathPolicy.kt  — политика example-плагина
-src/jsMain/kotlin/.../PathInspection.kt       — shared canonical path inspector example
-src/jsMain/kotlin/.../OpenCodePlugin.kt       — Secret Guard на features DSL
-src/jsTest/kotlin/...                         — integration tests example-плагина
-plugin/index.mjs                              — default-export adapter
-scripts/test-bindings-*.mjs                   — contract и deterministic проверки codegen
-scripts/smoke-plugin.mjs                      — проверка импорта артефакта
-scripts/verify-opencode.mjs                   — проверка настоящим CLI
+```bash
+./gradlew \
+  :core:publishToMavenLocal \
+  :plugin:publishToMavenLocal \
+  :permissions:publishToMavenLocal \
+  :tools:publishToMavenLocal \
+  :tui:publishToMavenLocal \
+  :processor:publishToMavenLocal
 ```
 
-## Ограничения безопасности
+## Ограничения безопасности Secret Guard
 
-Это демонстрационный защитный слой, а не sandbox:
+Это example защитного слоя, а не sandbox:
 
-- hook контролирует разрешение `read`, но не анализирует произвольные shell-команды вроде `cat .env`;
-- определение секретности основано на запрошенном пути и канонической цели символической ссылки, а не на содержимом;
-- `realpath` закрывает обычные symlink aliases; ошибка canonicalization блокирует путь fail-closed;
-- между `realpath` и фактическим чтением остаётся TOCTOU race: OpenCode hook передаёт путь, а не уже открытый файловый дескриптор, поэтому атомарно связать проверку и read невозможно;
-- hardlink невозможно надёжно распознать по одному имени без отдельного inode/index policy;
-- другие плагины и внешние процессы могут получать файлы иными способами;
-- обычные `.env.*` шаблоны считаются безопасными только тогда, когда их каноническая цель также безопасна.
+- permission hook не анализирует произвольные shell-команды вроде `cat .env`;
+- `realpath` закрывает обычные symlink aliases, но между проверкой и чтением остаётся TOCTOU race;
+- OpenCode hook передаёт pathname, а не уже открытый file descriptor;
+- hardlink нельзя надёжно распознать по одному пути;
+- другие plugins и внешние процессы могут читать файлы иными способами.
 
-Для реального защищённого окружения этот hook следует сочетать с правилами permissions OpenCode, ограничением shell и изоляцией процесса.
+## Проверенные версии
+
+- Kotlin `2.3.21`;
+- Gradle `9.3.1`;
+- KSP `2.3.7`;
+- kotlinx.serialization `1.9.0`;
+- OpenCode CLI/SDK `0.0.0-beta-19271`;
+- Karakum `1.0.0-alpha.112`;
+- TypeScript `6.0.2`.
 
 ## Лицензия
 

@@ -2,10 +2,12 @@ import org.gradle.api.tasks.Sync
 
 plugins {
     kotlin("multiplatform") version "2.3.21"
+    kotlin("plugin.serialization") version "2.3.21"
+    id("com.google.devtools.ksp") version "2.3.7"
 }
 
 group = "us.panks.opencode"
-version = "0.1.0"
+version = "0.2.0"
 
 repositories {
     mavenCentral()
@@ -23,12 +25,18 @@ kotlin {
 
     sourceSets {
         jsMain.dependencies {
-            implementation(project(":features"))
+            implementation(project(":permissions"))
+            implementation(project(":tools"))
         }
         jsTest.dependencies {
             implementation(kotlin("test"))
         }
     }
+}
+
+dependencies {
+    add("kspJs", project(":processor"))
+    add("kspJsTest", project(":processor"))
 }
 
 val assemblePlugin by tasks.registering(Sync::class) {
@@ -50,5 +58,9 @@ tasks.register<Exec>("smokePlugin") {
 tasks.named("check") {
     dependsOn("smokePlugin")
     dependsOn(":core:check")
-    dependsOn(":features:check")
+    dependsOn(":plugin:check")
+    dependsOn(":permissions:check")
+    dependsOn(":tools:check")
+    dependsOn(":tui:check")
+    dependsOn(":processor:check")
 }
